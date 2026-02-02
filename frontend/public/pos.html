@@ -1269,12 +1269,14 @@ function updateCartUI() {
         <div class="item-code">${item.barcode}</div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 2px;">
-          <button onclick="decreaseQuantity(${index})" style="width: 34px; height: 34px; border: none; background: rgba(255,255,255,0.08); color: #fff; border-radius: 7px; font-size: 18px; font-weight: 700;">−</button>
-          <span style="min-width: 28px; text-align: center; font-weight: 700; font-size: 15px;">${item.quantity}</span>
-          <button onclick="increaseQuantity(${index})" style="width: 34px; height: 34px; border: none; background: rgba(0,255,136,0.15); color: #00ff88; border-radius: 7px; font-size: 18px; font-weight: 700;">+</button>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <button onclick="decreaseQuantity(${index})" style="width: 30px; height: 30px; border: none; background: rgba(255,255,255,0.08); color: #fff; border-radius: 6px; font-size: 16px; font-weight: 700; line-height: 1;">−</button>
+            <span style="min-width: 22px; text-align: center; font-weight: 700; font-size: 14px;">${item.quantity}</span>
+            <button onclick="increaseQuantity(${index})" style="width: 30px; height: 30px; border: none; background: rgba(0,255,136,0.12); color: #00ff88; border-radius: 6px; font-size: 16px; font-weight: 700; line-height: 1;">+</button>
+          </div>
+          <div class="item-price" style="font-size: 16px;">₺${(item.price * item.quantity).toFixed(2)}</div>
         </div>
-        <div class="item-price">₺${(item.price * item.quantity).toFixed(2)}</div>
         <button class="remove-btn" onclick="removeFromCart(${index})">×</button>
       </div>
     </div>
@@ -1385,27 +1387,14 @@ async function renderDailySummary() {
     </div>
     
     <div style="padding: 16px;">
-      <button class="action-btn btn-primary" id="closeDayBtn">
+      <button class="action-btn btn-primary" onclick="window.closeDaySummary()">
         ✓ Günü Kapat
       </button>
-      <button class="action-btn btn-secondary" id="backFromSummaryBtn">
+      <button class="action-btn btn-secondary" onclick="window.closeSummaryAndResume()">
         ← Geri
       </button>
     </div>
   `;
-  
-  // Attach event listeners after rendering
-  setTimeout(() => {
-    const closeDayBtn = document.getElementById('closeDayBtn');
-    const backBtn = document.getElementById('backFromSummaryBtn');
-    
-    if (closeDayBtn) {
-      closeDayBtn.onclick = () => closeDaySummary();
-    }
-    if (backBtn) {
-      backBtn.onclick = () => closeSummaryAndResume();
-    }
-  }, 100);
 }
 
 function checkKasaFarki() {
@@ -1561,11 +1550,13 @@ async function confirmDayClose() {
 }
 
 function showDayClosedSuccess(data) {
-  // Format date
+  // Format date and time
   const date = new Date(data.businessDate);
   const dateStr = date.toLocaleDateString('tr-TR');
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   
-  document.getElementById('closedDayDate').textContent = dateStr;
+  document.getElementById('closedDayDate').textContent = `${dateStr} — ${timeStr}`;
   document.getElementById('closedDayStats').innerHTML = `
     <div style="font-size: 15px; line-height: 1.8;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
