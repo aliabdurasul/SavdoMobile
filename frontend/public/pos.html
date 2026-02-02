@@ -974,20 +974,23 @@ function addProduct(product) {
 
 function getCurrentBusinessDate() {
   // Get current active business date from localStorage
-  const stored = localStorage.getItem('currentBusinessDate');
+  let stored = localStorage.getItem('currentBusinessDate');
   
+  // If exists, return it
   if (stored) {
     return stored;
   }
   
-  // Create new business date (today)
+  // No active day - create new one (today's date)
   const today = getTodayDateStr();
   localStorage.setItem('currentBusinessDate', today);
+  console.log('New business day created:', today);
   return today;
 }
 
 function clearCurrentBusinessDate() {
   localStorage.removeItem('currentBusinessDate');
+  console.log('Business date cleared');
 }
 
 async function isBusinessDateClosed(dateStr) {
@@ -1438,6 +1441,12 @@ async function closeDaySummary() {
   const allTx = await getTransactionsByBusinessDate(businessDate);
   const transactions = allTx.filter(tx => !tx.closedDayId);
   
+  // Validate: Don't allow closing empty day
+  if (transactions.length === 0) {
+    showToast('Bugün hiç satış yapılmadı', 'warning');
+    return;
+  }
+  
   // Calculate totals
   const totalSales = transactions.reduce((sum, tx) => sum + tx.total, 0);
   const cashTotal = transactions.filter(tx => tx.paymentType === 'cash')
@@ -1445,6 +1454,7 @@ async function closeDaySummary() {
   const cardTotal = transactions.filter(tx => tx.paymentType === 'card')
                                 .reduce((sum, tx) => sum + tx.total, 0);
   const transactionCount = transactions.length;
+  const totalItemsSold = transactions.reduce((sum, tx) => sum + tx.itemCount, 0);
   
   // Store for confirmation and success screen
   window.pendingDayClose = {
@@ -1453,6 +1463,7 @@ async function closeDaySummary() {
     cashTotal,
     cardTotal,
     transactionCount,
+    totalItemsSold,
     transactions
   };
   
@@ -1471,9 +1482,13 @@ async function closeDaySummary() {
         <span>• Kart:</span>
         <span style="font-weight: 700;">₺${cardTotal.toFixed(2)}</span>
       </div>
-      <div style="display: flex; justify-content: space-between;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
         <span>• İşlem Sayısı:</span>
         <span style="font-weight: 700;">${transactionCount}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>• Satılan Ürün:</span>
+        <span style="font-weight: 700;">${totalItemsSold} adet</span>
       </div>
     </div>
   `;
@@ -1490,13 +1505,18 @@ async function confirmDayClose() {
   const data = window.pendingDayClose;
   if (!data) return;
   
+  // Get closing time
+  const closedAtDate = new Date();
+  
   const closedDay = {
     businessDate: data.businessDate,
     totalSales: data.totalSales,
     cashTotal: data.cashTotal,
     cardTotal: data.cardTotal,
     transactionCount: data.transactionCount,
-    closedAt: new Date().toISOString()
+    totalItemsSold: data.totalItemsSold,
+    closedAt: closedAtDate.toISOString(),
+    closedAtTime: closedAtDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
   };
   
   try {
@@ -1546,9 +1566,13 @@ function showDayClosedSuccess(data) {
         <span>• Kart:</span>
         <span style="font-weight: 700;">₺${data.cardTotal.toFixed(2)}</span>
       </div>
-      <div style="display: flex; justify-content: space-between;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
         <span>• İşlem Sayısı:</span>
         <span style="font-weight: 700;">${data.transactionCount}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>• Satılan Ürün:</span>
+        <span style="font-weight: 700;">${data.totalItemsSold} adet</span>
       </div>
     </div>
   `;
@@ -1563,10 +1587,16 @@ function startNewDay() {
   // Clear any pending data
   window.pendingDayClose = null;
   
+  // CRITICAL: Create new business day
+  const newDayDate = getTodayDateStr();
+  localStorage.setItem('currentBusinessDate', newDayDate);
+  
   // Resume scanner
   resumeScanner();
   
-  showToast('Yeni gün başladı ✅', 'success');
+  // Format date for display
+  const formattedDate = new Date(newDayDate).toLocaleDateString('tr-TR');
+  showToast(`Yeni gün başladı: ${formattedDate} ✅`, 'success');
 }
 
 function returnToScanner() {
