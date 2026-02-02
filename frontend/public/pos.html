@@ -1268,15 +1268,15 @@ function updateCartUI() {
         <div class="item-name">${item.name}</div>
         <div class="item-code">${item.barcode}</div>
       </div>
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 4px;">
-          <button onclick="decreaseQuantity(${index})" style="width: 32px; height: 32px; border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 18px; font-weight: 700; cursor: pointer;">−</button>
-          <span style="min-width: 24px; text-align: center; font-weight: 600;">${item.quantity}</span>
-          <button onclick="increaseQuantity(${index})" style="width: 32px; height: 32px; border: none; background: rgba(0,255,136,0.2); color: #00ff88; border-radius: 6px; font-size: 18px; font-weight: 700; cursor: pointer;">+</button>
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button onclick="decreaseQuantity(${index})" style="width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;">−</button>
+          <span style="min-width: 32px; text-align: center; font-weight: 700; font-size: 16px;">${item.quantity}</span>
+          <button onclick="increaseQuantity(${index})" style="width: 36px; height: 36px; border: none; background: rgba(0,255,136,0.2); color: #00ff88; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
         </div>
         <div class="item-price">₺${(item.price * item.quantity).toFixed(2)}</div>
-        <button class="remove-btn" onclick="removeFromCart(${index})">×</button>
       </div>
+      <button class="remove-btn" onclick="removeFromCart(${index})" style="margin-left: 8px;">×</button>
     </div>
   `).join('');
   
@@ -1431,6 +1431,7 @@ function checkKasaFarki() {
 
 function closeSummaryAndResume() {
   summaryModal.classList.remove('show');
+  scanLocked = false;
   resumeScanner();
 }
 
@@ -1581,8 +1582,10 @@ function showDayClosedSuccess(data) {
 }
 
 function startNewDay() {
-  // Close success modal
+  // Close all modals
   document.getElementById('dayClosedModal').style.display = 'none';
+  document.getElementById('confirmCloseModal').style.display = 'none';
+  summaryModal.classList.remove('show');
   
   // Clear any pending data
   window.pendingDayClose = null;
@@ -1590,6 +1593,9 @@ function startNewDay() {
   // CRITICAL: Create new business day
   const newDayDate = getTodayDateStr();
   localStorage.setItem('currentBusinessDate', newDayDate);
+  
+  // CRITICAL: Reset scan lock to allow 'Günü Kapat' to work again
+  scanLocked = false;
   
   // Resume scanner
   resumeScanner();
@@ -2020,12 +2026,14 @@ async function completeSale(paymentType) {
 // ========================================
 summaryBtn.onclick = async () => {
   pauseScanner();
+  scanLocked = false;
   summaryModal.classList.add('show');
   await renderDailySummary();
 };
 
 closeSummary.onclick = () => {
   summaryModal.classList.remove('show');
+  scanLocked = false;
   resumeScanner();
 };
 
