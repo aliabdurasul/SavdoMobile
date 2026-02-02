@@ -1268,15 +1268,15 @@ function updateCartUI() {
         <div class="item-name">${item.name}</div>
         <div class="item-code">${item.barcode}</div>
       </div>
-      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <button onclick="decreaseQuantity(${index})" style="width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;">−</button>
-          <span style="min-width: 32px; text-align: center; font-weight: 700; font-size: 16px;">${item.quantity}</span>
-          <button onclick="increaseQuantity(${index})" style="width: 36px; height: 36px; border: none; background: rgba(0,255,136,0.2); color: #00ff88; border-radius: 8px; font-size: 20px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 2px;">
+          <button onclick="decreaseQuantity(${index})" style="width: 34px; height: 34px; border: none; background: rgba(255,255,255,0.08); color: #fff; border-radius: 7px; font-size: 18px; font-weight: 700;">−</button>
+          <span style="min-width: 28px; text-align: center; font-weight: 700; font-size: 15px;">${item.quantity}</span>
+          <button onclick="increaseQuantity(${index})" style="width: 34px; height: 34px; border: none; background: rgba(0,255,136,0.15); color: #00ff88; border-radius: 7px; font-size: 18px; font-weight: 700;">+</button>
         </div>
         <div class="item-price">₺${(item.price * item.quantity).toFixed(2)}</div>
+        <button class="remove-btn" onclick="removeFromCart(${index})">×</button>
       </div>
-      <button class="remove-btn" onclick="removeFromCart(${index})" style="margin-left: 8px;">×</button>
     </div>
   `).join('');
   
@@ -1385,14 +1385,27 @@ async function renderDailySummary() {
     </div>
     
     <div style="padding: 16px;">
-      <button class="action-btn btn-primary" onclick="closeDaySummary()">
+      <button class="action-btn btn-primary" id="closeDayBtn">
         ✓ Günü Kapat
       </button>
-      <button class="action-btn btn-secondary" onclick="closeSummaryAndResume()">
+      <button class="action-btn btn-secondary" id="backFromSummaryBtn">
         ← Geri
       </button>
     </div>
   `;
+  
+  // Attach event listeners after rendering
+  setTimeout(() => {
+    const closeDayBtn = document.getElementById('closeDayBtn');
+    const backBtn = document.getElementById('backFromSummaryBtn');
+    
+    if (closeDayBtn) {
+      closeDayBtn.onclick = () => closeDaySummary();
+    }
+    if (backBtn) {
+      backBtn.onclick = () => closeSummaryAndResume();
+    }
+  }, 100);
 }
 
 function checkKasaFarki() {
