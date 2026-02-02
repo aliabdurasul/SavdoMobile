@@ -825,6 +825,61 @@ body {
   </div>
 </div>
 
+<!-- CONFIRM DAY CLOSE MODAL -->
+<div class="modal" id="confirmCloseModal" style="display: none;">
+  <div class="modal-header">
+    <div class="modal-title">⚠️ Gün Kapatma Onayı</div>
+  </div>
+  <div class="modal-content" style="padding: 24px;">
+    <div style="font-size: 16px; margin-bottom: 20px; line-height: 1.6;">
+      Günü kapatmak üzeresiniz.
+    </div>
+    
+    <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+      <div id="confirmDayStats"></div>
+    </div>
+    
+    <div style="color: #ff9f0a; font-size: 14px; text-align: center; margin-bottom: 20px;">
+      ⚠️ Bu işlem geri alınamaz.
+    </div>
+  </div>
+  <div class="modal-footer" style="display: flex; gap: 12px;">
+    <button class="action-btn btn-secondary" onclick="cancelDayClose()" style="flex: 1;">
+      ❌ Vazgeç
+    </button>
+    <button class="action-btn btn-primary" onclick="confirmDayClose()" style="flex: 1;">
+      ✅ Günü Kapat
+    </button>
+  </div>
+</div>
+
+<!-- DAY CLOSED SUCCESS MODAL -->
+<div class="modal" id="dayClosedModal" style="display: none;">
+  <div class="modal-header">
+    <div class="modal-title">✅ Gün Başarıyla Kapatıldı</div>
+  </div>
+  <div class="modal-content" style="padding: 24px;">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
+      <div style="font-size: 18px; font-weight: 700; color: #00ff88; margin-bottom: 8px;">
+        Gün Başarılı Şekilde Kapatıldı
+      </div>
+      <div style="font-size: 14px; color: rgba(255,255,255,0.6);" id="closedDayDate">
+        01.02.2026
+      </div>
+    </div>
+    
+    <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+      <div id="closedDayStats"></div>
+    </div>
+  </div>
+  <div class="modal-footer" style="display: flex; flex-direction: column; gap: 12px;">
+    <button class="action-btn btn-primary" onclick="startNewDay()">
+      ➕ Yeni Gün Başlat
+    </button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -1099,11 +1154,36 @@ function formatTurkishDate(dateStr) {
 // ========================================
 // STATE
 // ========================================
-let cart = [];
+let cart = []; // Array of {barcode, name, price, quantity}
 let scanLocked = false;
 let codeReader = null;
 let pendingSaleTotal = 0; // For payment modal
 let cashCounts = { 200: 0, 100: 0, 50: 0, 20: 0, coins: 0 };
+
+// Audio beep
+let beepAudio = null;
+function initBeep() {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  beepAudio = audioContext;
+}
+
+function playBeep() {
+  if (!beepAudio) return;
+  const oscillator = beepAudio.createOscillator();
+  const gainNode = beepAudio.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(beepAudio.destination);
+  
+  oscillator.frequency.value = 800;
+  oscillator.type = 'sine';
+  
+  gainNode.gain.setValueAtTime(0.3, beepAudio.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, beepAudio.currentTime + 0.1);
+  
+  oscillator.start(beepAudio.currentTime);
+  oscillator.stop(beepAudio.currentTime + 0.1);
+}
 
 // ========================================
 // UI ELEMENTS
@@ -1163,7 +1243,9 @@ function vibrate() {
 }
 
 function updateCartUI() {
-  cartBadge.textContent = cart.length;
+  // Calculate total items
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  cartBadge.textContent = totalItems;
   
   if (cart.length === 0) {
     cartContent.innerHTML = `
@@ -1183,14 +1265,37 @@ function updateCartUI() {
         <div class="item-name">${item.name}</div>
         <div class="item-code">${item.barcode}</div>
       </div>
-      <div class="item-price">₺${item.price.toFixed(2)}</div>
-      <button class="remove-btn" onclick="removeFromCart(${index})">×</button>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 4px;">
+          <button onclick="decreaseQuantity(${index})" style="width: 32px; height: 32px; border: none; background: rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-size: 18px; font-weight: 700; cursor: pointer;">−</button>
+          <span style="min-width: 24px; text-align: center; font-weight: 600;">${item.quantity}</span>
+          <button onclick="increaseQuantity(${index})" style="width: 32px; height: 32px; border: none; background: rgba(0,255,136,0.2); color: #00ff88; border-radius: 6px; font-size: 18px; font-weight: 700; cursor: pointer;">+</button>
+        </div>
+        <div class="item-price">₺${(item.price * item.quantity).toFixed(2)}</div>
+        <button class="remove-btn" onclick="removeFromCart(${index})">×</button>
+      </div>
     </div>
   `).join('');
   
-  const total = cart.reduce((sum, item) => sum + item.price, 0);
+  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   totalPrice.textContent = `₺${total.toFixed(2)}`;
   checkoutBtn.disabled = false;
+}
+
+function increaseQuantity(index) {
+  cart[index].quantity += 1;
+  updateCartUI();
+  vibrate();
+}
+
+function decreaseQuantity(index) {
+  if (cart[index].quantity > 1) {
+    cart[index].quantity -= 1;
+    updateCartUI();
+    vibrate();
+  } else {
+    removeFromCart(index);
+  }
 }
 
 function removeFromCart(index) {
@@ -1327,11 +1432,6 @@ function closeSummaryAndResume() {
 }
 
 async function closeDaySummary() {
-  // Simple confirm
-  if (!confirm('Günü kapatmak istiyor musunuz?\n\nBu işlem geri alınamaz.')) {
-    return;
-  }
-  
   const businessDate = getCurrentBusinessDate();
   
   // Get all UNCLOSED transactions for this business date
@@ -1346,13 +1446,56 @@ async function closeDaySummary() {
                                 .reduce((sum, tx) => sum + tx.total, 0);
   const transactionCount = transactions.length;
   
-  // Create closed day record
+  // Store for confirmation and success screen
+  window.pendingDayClose = {
+    businessDate,
+    totalSales,
+    cashTotal,
+    cardTotal,
+    transactionCount,
+    transactions
+  };
+  
+  // Show custom confirmation modal
+  document.getElementById('confirmDayStats').innerHTML = `
+    <div style="font-size: 15px; line-height: 1.8;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>• Toplam Satış:</span>
+        <span style="font-weight: 700;">₺${totalSales.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>• Nakit:</span>
+        <span style="font-weight: 700;">₺${cashTotal.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>• Kart:</span>
+        <span style="font-weight: 700;">₺${cardTotal.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>• İşlem Sayısı:</span>
+        <span style="font-weight: 700;">${transactionCount}</span>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('confirmCloseModal').style.display = 'flex';
+}
+
+function cancelDayClose() {
+  document.getElementById('confirmCloseModal').style.display = 'none';
+  window.pendingDayClose = null;
+}
+
+async function confirmDayClose() {
+  const data = window.pendingDayClose;
+  if (!data) return;
+  
   const closedDay = {
-    businessDate: businessDate,
-    totalSales: totalSales,
-    cashTotal: cashTotal,
-    cardTotal: cardTotal,
-    transactionCount: transactionCount,
+    businessDate: data.businessDate,
+    totalSales: data.totalSales,
+    cashTotal: data.cashTotal,
+    cardTotal: data.cardTotal,
+    transactionCount: data.transactionCount,
     closedAt: new Date().toISOString()
   };
   
@@ -1361,24 +1504,69 @@ async function closeDaySummary() {
     const closedDayId = await saveClosedDay(closedDay);
     
     // Mark all transactions as closed
-    for (const tx of transactions) {
+    for (const tx of data.transactions) {
       await updateTransaction(tx.id, { closedDayId: closedDayId });
     }
     
     // Clear business date - next action will create fresh day
     localStorage.removeItem('currentBusinessDate');
     
-    // Show success
-    showToast('✓ Gün kapatıldı', 'success');
+    // Hide confirmation modal
+    document.getElementById('confirmCloseModal').style.display = 'none';
     
-    // Close modal and return to scanner immediately
+    // Hide summary modal
     summaryModal.classList.remove('show');
-    resumeScanner();
+    
+    // Show success screen
+    showDayClosedSuccess(data);
     
   } catch (err) {
     console.error('Close day error:', err);
     showToast('Gün kapatılamadı', 'warning');
   }
+}
+
+function showDayClosedSuccess(data) {
+  // Format date
+  const date = new Date(data.businessDate);
+  const dateStr = date.toLocaleDateString('tr-TR');
+  
+  document.getElementById('closedDayDate').textContent = dateStr;
+  document.getElementById('closedDayStats').innerHTML = `
+    <div style="font-size: 15px; line-height: 1.8;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>• Toplam Satış:</span>
+        <span style="font-weight: 700; color: #00ff88;">₺${data.totalSales.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>• Nakit:</span>
+        <span style="font-weight: 700;">₺${data.cashTotal.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>• Kart:</span>
+        <span style="font-weight: 700;">₺${data.cardTotal.toFixed(2)}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>• İşlem Sayısı:</span>
+        <span style="font-weight: 700;">${data.transactionCount}</span>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('dayClosedModal').style.display = 'flex';
+}
+
+function startNewDay() {
+  // Close success modal
+  document.getElementById('dayClosedModal').style.display = 'none';
+  
+  // Clear any pending data
+  window.pendingDayClose = null;
+  
+  // Resume scanner
+  resumeScanner();
+  
+  showToast('Yeni gün başladı ✅', 'success');
 }
 
 function returnToScanner() {
@@ -1403,14 +1591,26 @@ async function handleBarcode(barcode) {
     let product = await getProduct(barcode);
     
     if (product) {
-      // Product exists - add to cart immediately
-      cart.push({ ...product });
-      showToast(`✓ ${product.name} - ₺${product.price.toFixed(2)}`, 'success');
+      // Check if product already in cart
+      const existingIndex = cart.findIndex(item => item.barcode === barcode);
+      
+      if (existingIndex >= 0) {
+        // Product exists in cart - increase quantity
+        cart[existingIndex].quantity += 1;
+        showToast(`✓ ${product.name} (${cart[existingIndex].quantity}x)`, 'success');
+      } else {
+        // New product - add to cart with quantity 1
+        cart.push({ ...product, quantity: 1 });
+        showToast(`✓ ${product.name}`, 'success');
+      }
+      
+      // Beep + vibrate
+      playBeep();
       vibrate();
       updateCartUI();
       
       // Resume scanning after delay
-      setTimeout(() => scanLocked = false, 1000);
+      setTimeout(() => scanLocked = false, 800);
     } else {
       // Product NOT found - open Quick Add modal
       pauseScanner();
@@ -1546,10 +1746,11 @@ saveQuickAdd.onclick = async () => {
   
   try {
     await addProduct(newProduct);
-    cart.push({ ...newProduct });
+    cart.push({ ...newProduct, quantity: 1 });
     updateCartUI();
     closeQuickAddModal();
     showToast(`✓ ${newProduct.name} eklendi`, 'success');
+    playBeep();
     vibrate();
   } catch (err) {
     console.error('Quick add error:', err);
@@ -1610,12 +1811,12 @@ async function showReceiptSummary(transaction) {
     document.getElementById('receiptTotal').textContent = `₺${transaction.total.toFixed(2)}`;
     document.getElementById('receiptPayment').textContent = transaction.paymentType === 'cash' ? '💵 Nakit' : '💳 Kart';
     
-    // Populate items
+    // Populate items with quantities
     const itemsContainer = document.getElementById('receiptItems');
     itemsContainer.innerHTML = transaction.items.map(item => 
       `<div style="display: flex; justify-content: space-between; padding: 4px 0;">
-        <span>${item.name}</span>
-        <span>₺${item.price.toFixed(2)}</span>
+        <span>${item.name} ${item.quantity > 1 ? `(x${item.quantity})` : ''}</span>
+        <span>₺${(item.price * item.quantity).toFixed(2)}</span>
       </div>`
     ).join('');
     
@@ -1647,7 +1848,11 @@ async function showQRFromReceipt() {
     const receiptData = {
       shop: shopName,
       date: date.toLocaleDateString('tr-TR') + ' ' + date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-      items: currentTransaction.items.map(item => ({ name: item.name, price: item.price })),
+      items: currentTransaction.items.map(item => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity
+      })),
       total: currentTransaction.total,
       payment: currentTransaction.paymentType === 'cash' ? 'Nakit' : 'Kart'
     };
@@ -1730,17 +1935,23 @@ paymentCard.onclick = () => {
 async function completeSale(paymentType) {
   if (cart.length === 0) return;
   
-  const total = cart.reduce((sum, item) => sum + item.price, 0);
-  const itemCount = cart.length;
+  // Calculate total with quantities
+  const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   
   // Create transaction with all required fields
   const transaction = {
     businessDate: getCurrentBusinessDate(),
     timestamp: new Date().toISOString(),
     paymentType: paymentType,
-    items: [...cart],
+    items: cart.map(item => ({
+      barcode: item.barcode,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity
+    })),
     total: total,
-    itemCount: itemCount,
+    itemCount: totalItems,
     closedDayId: null
   };
   
@@ -1801,6 +2012,9 @@ closeSummary.onclick = () => {
     await setSetting('currency', '₺');
   }
   
+  // Initialize beep audio
+  initBeep();
+  
   await seedProducts();
   await startScanner();
   updateCartUI();
@@ -1808,8 +2022,13 @@ closeSummary.onclick = () => {
 
 // Expose for inline handlers
 window.removeFromCart = removeFromCart;
+window.increaseQuantity = increaseQuantity;
+window.decreaseQuantity = decreaseQuantity;
 window.closeDaySummary = closeDaySummary;
 window.closeSummaryAndResume = closeSummaryAndResume;
+window.cancelDayClose = cancelDayClose;
+window.confirmDayClose = confirmDayClose;
+window.startNewDay = startNewDay;
 window.returnToScanner = returnToScanner;
 window.showQRFromReceipt = showQRFromReceipt;
 window.startNewSale = startNewSale;
