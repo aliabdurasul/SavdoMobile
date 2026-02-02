@@ -1,18 +1,18 @@
 {
-  "name": "savdo-mobile",
+  "name": "prestige-pos",
   "version": "1.0.0",
-  "description": "Offline-first POS web app for small retail shops",
+  "description": "Production-ready offline-first POS system for retail shops",
   "private": true,
   "workspaces": [
     "frontend",
     "backend"
   ],
   "scripts": {
-    "install-all": "yarn install",
-    "start:frontend": "cd frontend && yarn start",
-    "build:frontend": "cd frontend && yarn build",
+    "install-all": "npm install",
+    "start:frontend": "cd frontend && npm start",
+    "build:frontend": "cd frontend && npm run build",
     "start:backend": "cd backend && python server.py",
-    "dev": "concurrently \"yarn start:frontend\" \"yarn start:backend\""
+    "dev": "concurrently \"npm run start:frontend\" \"npm run start:backend\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
