@@ -1440,13 +1440,15 @@ function closeSummaryAndResume() {
 async function closeDaySummary() {
   const businessDate = getCurrentBusinessDate();
   
-  // Get all transactions for this business date (allow multiple closes per day)
+  // Get ALL transactions for this business date (allow multiple closes per day)
   const transactions = await getTransactionsByBusinessDate(businessDate);
+  
   // Validate: Don't allow closing empty day
   if (transactions.length === 0) {
     showToast('Bugün hiç satış yapılmadı', 'warning');
     return;
   }
+  
   // Calculate totals
   const totalSales = transactions.reduce((sum, tx) => sum + tx.total, 0);
   const cashTotal = transactions.filter(tx => tx.paymentType === 'cash')
@@ -1455,6 +1457,7 @@ async function closeDaySummary() {
                                 .reduce((sum, tx) => sum + tx.total, 0);
   const transactionCount = transactions.length;
   const totalItemsSold = transactions.reduce((sum, tx) => sum + tx.itemCount, 0);
+  
   // Store for confirmation and success screen
   window.pendingDayClose = {
     businessDate,
@@ -1465,6 +1468,7 @@ async function closeDaySummary() {
     totalItemsSold,
     transactions
   };
+  
   // Show custom confirmation modal
   document.getElementById('confirmDayStats').innerHTML = `
     <div style="font-size: 15px; line-height: 1.8;">
@@ -1490,6 +1494,7 @@ async function closeDaySummary() {
       </div>
     </div>
   `;
+  
   document.getElementById('confirmCloseModal').style.display = 'flex';
 }
 
@@ -1517,29 +1522,70 @@ async function confirmDayClose() {
   };
   
   try {
-    // Save closed day record (no marking transactions as closed)
-    await saveClosedDay(closedDay);
-    // Clear business date - next action will create fresh day
-    localStorage.removeItem('currentBusinessDate');
+    // Save closed day record (allow multiple records per business date)
+    const closedDayId = await saveClosedDay(closedDay);
+    
+    // Keep business date - allow multiple closes per day
+    // localStorage.removeItem('currentBusinessDate'); // Removed to allow multiple closes
+    
     // Hide confirmation modal
     document.getElementById('confirmCloseModal').style.display = 'none';
+    
     // Hide summary modal
     summaryModal.classList.remove('show');
+    
     // Show success screen
-    showDayClosedSuccess(data);
+    await showDayClosedSuccess(data);
+    
   } catch (err) {
     console.error('Close day error:', err);
     showToast('Gün kapatılamadı', 'warning');
   }
 }
 
-function showDayClosedSuccess(data) {
+async function showDayClosedSuccess(data) {
   // Format date and time
   const date = new Date(data.businessDate);
   const dateStr = date.toLocaleDateString('tr-TR');
   const now = new Date();
   const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  
   document.getElementById('closedDayDate').textContent = `${dateStr} — ${timeStr}`;
+  
+  // Get yesterday's data for comparison
+  let comparisonHtml = '';
+  try {
+    const yesterday = new Date(data.businessDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    // Get all closed days for yesterday and sum them up
+    const allClosedDays = await getAllClosedDays();
+    const yesterdayClosedDays = allClosedDays.filter(day => day.businessDate === yesterdayStr);
+    
+    if (yesterdayClosedDays.length > 0) {
+      const yesterdayTotal = yesterdayClosedDays.reduce((sum, day) => sum + day.totalSales, 0);
+      const diff = data.totalSales - yesterdayTotal;
+      const diffPercent = yesterdayTotal > 0 ? ((diff / yesterdayTotal) * 100).toFixed(1) : '+';
+      const diffColor = diff >= 0 ? '#00ff88' : '#ff6b6b';
+      const diffIcon = diff >= 0 ? '↗' : '↘';
+      
+      comparisonHtml = `
+        <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #333; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span>• Dün Toplam:</span>
+            <span style="font-weight: 600;">₺${yesterdayTotal.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>• Fark:</span>
+            <span style="font-weight: 700; color: ${diffColor};">₺${Math.abs(diff).toFixed(2)} ${diffIcon}</span>
+          </div>
+        </div>`;
+    }
+  } catch (err) {
+    console.log('Could not load comparison data:', err);
+  }
+  
   document.getElementById('closedDayStats').innerHTML = `
     <div style="font-size: 15px; line-height: 1.8;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
@@ -1562,28 +1608,10 @@ function showDayClosedSuccess(data) {
         <span>• Satılan Ürün:</span>
         <span style="font-weight: 700;">${data.totalItemsSold} adet</span>
       </div>
+      ${comparisonHtml}
     </div>
-    <div id="dayComparison" style="margin-top:12px;font-size:14px;color:#aaa;"></div>
   `;
-  // Add daily comparison (today vs yesterday)
-  (async () => {
-    const allClosed = await getAllClosedDays();
-    const yesterday = (() => {
-      const d = new Date(data.businessDate);
-      d.setDate(d.getDate() - 1);
-      return d.toISOString().slice(0, 10);
-    })();
-    const yesterdayDay = allClosed.find(d => d.businessDate === yesterday);
-    let comparison = '';
-    if (yesterdayDay) {
-      const diff = data.totalSales - yesterdayDay.totalSales;
-      const sign = diff > 0 ? '+' : '';
-      comparison = `Düne göre: <b>${sign}₺${diff.toFixed(2)}</b>`;
-    } else {
-      comparison = 'Düne ait veri yok';
-    }
-    document.getElementById('dayComparison').innerHTML = comparison;
-  })();
+  
   document.getElementById('dayClosedModal').style.display = 'flex';
 }
 
@@ -1596,11 +1624,11 @@ function startNewDay() {
   // Clear any pending data
   window.pendingDayClose = null;
   
-  // CRITICAL: Create new business day
+  // CRITICAL: Create new business day (actual new day)
   const newDayDate = getTodayDateStr();
   localStorage.setItem('currentBusinessDate', newDayDate);
   
-  // CRITICAL: Reset scan lock to allow 'Günü Kapat' to work again
+  // CRITICAL: Reset scan lock
   scanLocked = false;
   
   // Resume scanner
