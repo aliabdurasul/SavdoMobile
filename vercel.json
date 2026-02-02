@@ -1,20 +1,8 @@
 {
-  "version": 2,
-  "buildCommand": "cd frontend && yarn install && yarn build",
+  "buildCommand": "cd frontend && yarn build",
   "outputDirectory": "frontend/build",
-  "installCommand": "yarn install",
-  "routes": [
-    {
-      "src": "/pos.html",
-      "dest": "/pos.html"
-    },
-    {
-      "src": "/receipt.html",
-      "dest": "/receipt.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+  "installCommand": "cd frontend && yarn install",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
