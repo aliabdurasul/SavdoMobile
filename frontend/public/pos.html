@@ -1440,16 +1440,13 @@ function closeSummaryAndResume() {
 async function closeDaySummary() {
   const businessDate = getCurrentBusinessDate();
   
-  // Get all UNCLOSED transactions for this business date
-  const allTx = await getTransactionsByBusinessDate(businessDate);
-  const transactions = allTx.filter(tx => !tx.closedDayId);
-  
+  // Get all transactions for this business date (allow multiple closes per day)
+  const transactions = await getTransactionsByBusinessDate(businessDate);
   // Validate: Don't allow closing empty day
   if (transactions.length === 0) {
     showToast('Bugün hiç satış yapılmadı', 'warning');
     return;
   }
-  
   // Calculate totals
   const totalSales = transactions.reduce((sum, tx) => sum + tx.total, 0);
   const cashTotal = transactions.filter(tx => tx.paymentType === 'cash')
@@ -1458,7 +1455,6 @@ async function closeDaySummary() {
                                 .reduce((sum, tx) => sum + tx.total, 0);
   const transactionCount = transactions.length;
   const totalItemsSold = transactions.reduce((sum, tx) => sum + tx.itemCount, 0);
-  
   // Store for confirmation and success screen
   window.pendingDayClose = {
     businessDate,
@@ -1469,7 +1465,6 @@ async function closeDaySummary() {
     totalItemsSold,
     transactions
   };
-  
   // Show custom confirmation modal
   document.getElementById('confirmDayStats').innerHTML = `
     <div style="font-size: 15px; line-height: 1.8;">
@@ -1495,7 +1490,6 @@ async function closeDaySummary() {
       </div>
     </div>
   `;
-  
   document.getElementById('confirmCloseModal').style.display = 'flex';
 }
 
@@ -1523,26 +1517,16 @@ async function confirmDayClose() {
   };
   
   try {
-    // Save closed day record
-    const closedDayId = await saveClosedDay(closedDay);
-    
-    // Mark all transactions as closed
-    for (const tx of data.transactions) {
-      await updateTransaction(tx.id, { closedDayId: closedDayId });
-    }
-    
+    // Save closed day record (no marking transactions as closed)
+    await saveClosedDay(closedDay);
     // Clear business date - next action will create fresh day
     localStorage.removeItem('currentBusinessDate');
-    
     // Hide confirmation modal
     document.getElementById('confirmCloseModal').style.display = 'none';
-    
     // Hide summary modal
     summaryModal.classList.remove('show');
-    
     // Show success screen
     showDayClosedSuccess(data);
-    
   } catch (err) {
     console.error('Close day error:', err);
     showToast('Gün kapatılamadı', 'warning');
@@ -1555,7 +1539,6 @@ function showDayClosedSuccess(data) {
   const dateStr = date.toLocaleDateString('tr-TR');
   const now = new Date();
   const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  
   document.getElementById('closedDayDate').textContent = `${dateStr} — ${timeStr}`;
   document.getElementById('closedDayStats').innerHTML = `
     <div style="font-size: 15px; line-height: 1.8;">
@@ -1580,8 +1563,27 @@ function showDayClosedSuccess(data) {
         <span style="font-weight: 700;">${data.totalItemsSold} adet</span>
       </div>
     </div>
+    <div id="dayComparison" style="margin-top:12px;font-size:14px;color:#aaa;"></div>
   `;
-  
+  // Add daily comparison (today vs yesterday)
+  (async () => {
+    const allClosed = await getAllClosedDays();
+    const yesterday = (() => {
+      const d = new Date(data.businessDate);
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+    const yesterdayDay = allClosed.find(d => d.businessDate === yesterday);
+    let comparison = '';
+    if (yesterdayDay) {
+      const diff = data.totalSales - yesterdayDay.totalSales;
+      const sign = diff > 0 ? '+' : '';
+      comparison = `Düne göre: <b>${sign}₺${diff.toFixed(2)}</b>`;
+    } else {
+      comparison = 'Düne ait veri yok';
+    }
+    document.getElementById('dayComparison').innerHTML = comparison;
+  })();
   document.getElementById('dayClosedModal').style.display = 'flex';
 }
 
