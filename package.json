@@ -1,0 +1,20 @@
+{
+  "name": "savdo-mobile",
+  "version": "1.0.0",
+  "description": "Offline-first POS web app for small retail shops",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "install-all": "yarn install",
+    "start:frontend": "cd frontend && yarn start",
+    "build:frontend": "cd frontend && yarn build",
+    "start:backend": "cd backend && python server.py",
+    "dev": "concurrently \"yarn start:frontend\" \"yarn start:backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
